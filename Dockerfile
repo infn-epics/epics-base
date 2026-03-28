@@ -33,6 +33,9 @@ RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
     ansible-core \
     ansible-lint \
+    binutils-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
+    gcc-aarch64-linux-gnu \
     inotify-tools \
     libevent-dev \
     libreadline-dev \
@@ -45,7 +48,7 @@ COPY epics ${EPICS_ROOT}
 RUN git clone https://github.com/epics-base/epics-base \
         --branch ${EPICS_VERSION} -q  ${EPICS_BASE} && \
     bash ${EPICS_ROOT}/scripts/patch-epics-base.sh
-RUN make -C ${EPICS_BASE} -j $(nproc); make -C ${EPICS_BASE} clean
+RUN make -C ${EPICS_BASE} -j $(nproc)
 
 # build pvxs
 RUN bash ${EPICS_ROOT}/scripts/make_pvxs.sh

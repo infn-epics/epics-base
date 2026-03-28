@@ -1,0 +1,4 @@
+# add required settings for linux-aarch64 cross compilation
+CROSS_COMPILER_TARGET_ARCHS=linux-aarch64
+GNU_TARGET=aarch64-linux-gnu
+GNU_DIR=/usr

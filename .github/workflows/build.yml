@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        epics-target: [linux-x86_64]
+        epics-target: [linux-x86_64, linux-aarch64]
         #epics-target: [RTEMS-beatnik, linux-x86_64, linux-aarch64]
         include:
           - os: ubuntu-latest # everyone is on os-latest
@@ -34,12 +34,12 @@ jobs:
           #   base_image: ghcr.io/epics-containers/rtems-beatnik-runtime:6.1ec4
           #   platform: linux/amd64
 
-          # # cross compile to arm64
-          # - epics-target: linux-aarch64
-          #   epics-host: linux-x86_64
-          #   name: epics-base-aarch64
-          #   base_image: ubuntu:24.04
-          #   platform: linux/amd64
+          # native linux/arm64 build (run via buildx+qemu on hosted runners)
+          - epics-target: linux-aarch64
+            epics-host: linux-aarch64
+            name: epics-base-aarch64
+            base_image: ubuntu:24.04
+            platform: linux/arm64
 
     runs-on: ${{ matrix.os }}
     env:
@@ -55,6 +55,9 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Build image
         uses: docker/build-push-action@v5

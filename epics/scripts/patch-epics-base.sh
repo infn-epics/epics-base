@@ -12,6 +12,17 @@ if [[ ${EPICS_TARGET_ARCH} == "RTEMS-beatnik" ]]; then
     echo "Configuring epics-base to build RTEMS beatnik"
 
     cp ${THIS_DIR}/rtems/CONFIG_SITE.local ${EPICS_BASE}/configure/CONFIG_SITE.local
+elif [[ ${EPICS_TARGET_ARCH} == "linux-aarch64" ]]; then
+    echo "Configuring epics-base to build linux-aarch64"
+
+    cp ${THIS_DIR}/aarch64/CONFIG_SITE.local ${EPICS_BASE}/configure/CONFIG_SITE.local
+
+    cat > ${EPICS_BASE}/configure/os/CONFIG_SITE.linux-x86_64.linux-aarch64 <<'EOF'
+# Override upstream Xilinx SDK defaults and use distro cross toolchain.
+GNU_TARGET = aarch64-linux-gnu
+GNU_DIR = /usr
+COMMANDLINE_LIBRARY = EPICS
+EOF
 elif [[ ${EPICS_TARGET_ARCH} != "linux-x86_64" ]]; then
     echo "Configuring epics-base for target ${EPICS_TARGET_ARCH}"
 
