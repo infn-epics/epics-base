@@ -34,7 +34,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && \
     ansible-core \
     ansible-lint \
     binutils-aarch64-linux-gnu \
+    g++ \
     g++-aarch64-linux-gnu \
+    gcc \
     gcc-aarch64-linux-gnu \
     inotify-tools \
     libevent-dev \
