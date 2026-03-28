@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     # pull requests are a duplicate of a branch push if within the same repo.
@@ -60,7 +63,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Build image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           platforms: ${{ matrix.platform }}
           target: runtime
@@ -74,7 +77,7 @@ jobs:
 
       - name: Push developer image
         if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           platforms: ${{ matrix.platform }}
           target: developer
@@ -87,7 +90,7 @@ jobs:
 
       - name: Push runtime image
         if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           platforms: ${{ matrix.platform }}
           target: runtime

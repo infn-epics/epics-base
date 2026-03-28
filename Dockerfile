@@ -29,8 +29,8 @@ ENV LD_LIBRARY_PATH=${EPICS_BASE}/lib/${EPICS_HOST_ARCH}
 ENV UV_PYTHON_INSTALL_DIR=/python
 
 # install build tools and utilities
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
+RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ansible-core \
     ansible-lint \
     binutils-aarch64-linux-gnu \
@@ -39,6 +39,7 @@ RUN apt-get update -y && \
     inotify-tools \
     libevent-dev \
     libreadline-dev \
+    make \
     re2c \
     rsync \
     && rm -rf /var/lib/apt/lists/*
@@ -85,8 +86,8 @@ ENV LD_LIBRARY_PATH=${EPICS_BASE}/lib/${EPICS_HOST_ARCH}
 COPY --from=runtime_prep /assets /
 
 # add runtime system dependencies
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
+RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     busybox \
     libevent-dev \
     libreadline8 \
