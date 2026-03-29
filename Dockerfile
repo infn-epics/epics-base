@@ -42,6 +42,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && \
     libevent-dev \
     libreadline-dev \
     make \
+    python3-venv \
     re2c \
     rsync \
     && rm -rf /var/lib/apt/lists/*
@@ -58,7 +59,7 @@ RUN bash ${EPICS_ROOT}/scripts/make_pvxs.sh
 ENV PATH=${EPICS_ROOT}/support/pvxs/bin/${EPICS_HOST_ARCH}:${PATH}
 
 # create a venv for IOCs to install ibek
-RUN uv venv --managed-python /venv
+RUN python3 -m venv /venv
 
 ##### runtime preparation stage ################################################
 FROM developer AS runtime_prep
