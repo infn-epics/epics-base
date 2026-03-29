@@ -44,6 +44,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && \
     ansible-core \
     ansible-lint \
     binutils-aarch64-linux-gnu \
+    curl \
     g++ \
     g++-aarch64-linux-gnu \
     gcc \
@@ -56,6 +57,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && \
     rsync \
     && rm -rf /var/lib/apt/lists/*
 
+# install uv explicitly (base image may not provide it on all architectures)
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
 # get and build EPICS base
 COPY epics ${EPICS_ROOT}
 RUN git clone https://github.com/epics-base/epics-base \
@@ -67,7 +71,6 @@ RUN . /tmp/arch.env && \
 # build pvxs
 RUN . /tmp/arch.env && \
     bash ${EPICS_ROOT}/scripts/make_pvxs.sh
-ENV PATH=${EPICS_ROOT}/support/pvxs/bin/${EPICS_HOST_ARCH}:${PATH}
 ENV PATH=${EPICS_ROOT}/support/pvxs/bin/${EPICS_HOST_ARCH}:${PATH}
 
 # create a venv for IOCs to install ibek
