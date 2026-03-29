@@ -13,13 +13,23 @@ ARG RUNTIME_BASE=ubuntu:noble
 ##### developer stage ##########################################################
 FROM ${BASE_IMAGE} AS developer
 
+ARG TARGETARCH
 ARG EPICS_TARGET_ARCH=linux-x86_64
-ARG EPICS_HOST_ARCH=linux-x86_64
+
+# Create arch helper and set it early
+RUN set -e; \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+      EPICS_HOST_ARCH="linux-aarch64"; \
+    else \
+      EPICS_HOST_ARCH="linux-x86_64"; \
+    fi; \
+    echo "EPICS_HOST_ARCH=${EPICS_HOST_ARCH}" > /tmp/arch.env && \
+    cat /tmp/arch.env
 
 # environment variables - IMPORTANT: must be duplicated in the runtime stage
 ENV EPICS_VERSION=7.0.10
 ENV EPICS_TARGET_ARCH=${EPICS_TARGET_ARCH}
-ENV EPICS_HOST_ARCH=${EPICS_HOST_ARCH}
+ENV EPICS_HOST_ARCH=linux-x86_64
 ENV EPICS_ROOT=/epics
 ENV EPICS_BASE=${EPICS_ROOT}/epics-base
 ENV SUPPORT ${EPICS_ROOT}/support
@@ -42,7 +52,6 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && \
     libevent-dev \
     libreadline-dev \
     make \
-    python3-venv \
     re2c \
     rsync \
     && rm -rf /var/lib/apt/lists/*
@@ -52,14 +61,17 @@ COPY epics ${EPICS_ROOT}
 RUN git clone https://github.com/epics-base/epics-base \
         --branch ${EPICS_VERSION} -q  ${EPICS_BASE} && \
     bash ${EPICS_ROOT}/scripts/patch-epics-base.sh
-RUN make -C ${EPICS_BASE} -j $(nproc)
+RUN . /tmp/arch.env && \
+    make -C ${EPICS_BASE} -j $(nproc)
 
 # build pvxs
-RUN bash ${EPICS_ROOT}/scripts/make_pvxs.sh
+RUN . /tmp/arch.env && \
+    bash ${EPICS_ROOT}/scripts/make_pvxs.sh
+ENV PATH=${EPICS_ROOT}/support/pvxs/bin/${EPICS_HOST_ARCH}:${PATH}
 ENV PATH=${EPICS_ROOT}/support/pvxs/bin/${EPICS_HOST_ARCH}:${PATH}
 
 # create a venv for IOCs to install ibek
-RUN python3 -m venv /venv
+RUN uv venv --managed-python /venv
 
 ##### runtime preparation stage ################################################
 FROM developer AS runtime_prep
@@ -70,13 +82,22 @@ RUN bash epics/scripts/move_runtime.sh /assets
 ##### runtime stage ############################################################
 FROM ${RUNTIME_BASE} as runtime
 
+ARG TARGETARCH
 ARG EPICS_TARGET_ARCH=linux-x86_64
-ARG EPICS_HOST_ARCH=linux-x86_64
+
+# Create arch helper
+RUN set -e; \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+      EPICS_HOST_ARCH="linux-aarch64"; \
+    else \
+      EPICS_HOST_ARCH="linux-x86_64"; \
+    fi; \
+    echo "EPICS_HOST_ARCH=${EPICS_HOST_ARCH}" > /tmp/arch.env
 
 # environment variables - IMPORTANT: must be duplicated in the developer stage
 ENV EPICS_VERSION=7.0.10
 ENV EPICS_TARGET_ARCH=${EPICS_TARGET_ARCH}
-ENV EPICS_HOST_ARCH=${EPICS_HOST_ARCH}
+ENV EPICS_HOST_ARCH=linux-x86_64
 ENV EPICS_ROOT=/epics
 ENV EPICS_BASE=${EPICS_ROOT}/epics-base
 ENV SUPPORT ${EPICS_ROOT}/support
