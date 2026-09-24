@@ -1,22 +1,43 @@
 diff --git a/modules/libcom/RTEMS/rtems_netconfig.c b/modules/libcom/RTEMS/rtems_netconfig.c
-index d9267cc..f8a4095 100644
+index d9267cc..fb3ea35 100644
 --- a/modules/libcom/RTEMS/rtems_netconfig.c
 +++ b/modules/libcom/RTEMS/rtems_netconfig.c
-@@ -71,13 +71,11 @@ static struct rtems_bsdnet_ifconfig fxp_driver_config = {
+@@ -53,31 +53,19 @@ static struct rtems_bsdnet_ifconfig loopback_config = {
+  * application directory and make the appropriate changes.
+  */
+ #if defined(__i386__)
+-extern int
+-rtems_ne2kpci_driver_attach (struct rtems_bsdnet_ifconfig *config);
+-static struct rtems_bsdnet_ifconfig ne2k_driver_config = {
+-    "ne2",                             /* name */
+-    (void*)&rtems_ne2kpci_driver_attach,       /* attach function */
+-#if RTEMS_VERSION_INT<VERSION_INT(4,11,0,0)
+-    &loopback_config,                   /* link to next interface */
+-#else
+-    NULL,
+-#endif
+-};
+-
++/*
++ * RTEMS-pc686 (VME SBCs like the VMIVME-7750): only the Intel 8255x (fxp)
++ * driver. With RTEMS 6 the rtems-net-legacy package does not build the
++ * ne2000 driver for pc686 (needed by ne2kpci.c) and rtems_3c509_driver_attach
++ * changed signature (declared in bsp.h).
++ */
+ extern int rtems_fxp_attach (struct rtems_bsdnet_ifconfig *, int);
+ static struct rtems_bsdnet_ifconfig fxp_driver_config = {
+     "fxp1",                             /* name */
      rtems_fxp_attach,                   /* attach function */
-     &ne2k_driver_config,             /* link to next interface */
- };
+-    &ne2k_driver_config,             /* link to next interface */
+-};
 -extern int rtems_3c509_driver_attach (struct rtems_bsdnet_ifconfig *, int);
 -static struct rtems_bsdnet_ifconfig e3c509_driver_config = {
 -    "ep0",                              /* name */
 -    rtems_3c509_driver_attach,          /* attach function */
 -    &fxp_driver_config,                 /* link to next interface */
--};
++    NULL,                               /* link to next interface */
+ };
 -#define FIRST_DRIVER_CONFIG &e3c509_driver_config
-+/*
-+ * RTEMS-pc686 (VME SBCs like the VMIVME-7750): no ISA 3c509 probing, whose
-+ * attach function also changed signature in RTEMS 6 (declared in bsp.h)
-+ */
 +#define FIRST_DRIVER_CONFIG &fxp_driver_config
  #else
  

@@ -18,7 +18,7 @@ elif [[ ${EPICS_TARGET_ARCH} == "RTEMS-pc686" ]]; then
     cp ${THIS_DIR}/rtems-pc686/CONFIG_SITE.local ${EPICS_BASE}/configure/CONFIG_SITE.local
     cp ${THIS_DIR}/rtems-pc686/CONFIG_SITE.Common.RTEMS-pc686 \
        ${EPICS_BASE}/configure/os/CONFIG_SITE.Common.RTEMS-pc686
-    # RTEMS 6 legacy stack: only probe PCI NICs (fxp for the 82559)
+    # RTEMS 6 legacy stack: only the fxp driver (Intel 82559 on the VMIVME-7750)
     git -C ${EPICS_BASE} apply ${THIS_DIR}/rtems-pc686/rtems_netconfig.patch
 elif [[ ${EPICS_TARGET_ARCH} == "linux-aarch64" ]]; then
     echo "Configuring epics-base to build linux-aarch64"
