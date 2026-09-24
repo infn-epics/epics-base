@@ -36,15 +36,24 @@ grep -q "bootpc_init: using network interface 'fxp1'" ${workdir}/bootp.log
 grep -q "Address:10.0.2.15" ${workdir}/bootp.log
 
 echo "=== test 2: static network configuration and telnet iocsh"
-timeout 90 qemu-system-i386 -m 256 -no-reboot -nographic \
+# console to a file (not -nographic) since qemu runs in the background
+timeout 90 qemu-system-i386 -m 256 -no-reboot -display none -monitor none \
+    -serial file:${workdir}/static.log \
     -nic user,model=i82559er,hostfwd=tcp:127.0.0.1:${TELNET_PORT}-:23 \
-    -append "--video=off --console=/dev/com1 IPADDR0=10.0.2.15 NETMASK=255.255.255.0 GATEWAY=10.0.2.2 SERVER=10.0.2.2 NTPSERVER=10.0.2.2 HOSTNAME=qemuioc" \
-    -kernel ${workdir}/softIoc.boot > ${workdir}/static.log &
+    -append "--console=/dev/com1 IPADDR0=10.0.2.15 NETMASK=255.255.255.0 GATEWAY=10.0.2.2 SERVER=10.0.2.2 HOSTNAME=qemuioc" \
+    -kernel ${workdir}/softIoc.boot &
+
+# connecting to the qemu port forward before the guest has booted stops the
+# boot in qemu user networking, so wait for telnetd on the console first
+for i in $(seq 60); do
+    grep -q "telnetd start" ${workdir}/static.log 2>/dev/null && break
+    sleep 1
+done
 
 python3 - ${TELNET_PORT} > ${workdir}/telnet.log <<'PYEOF'
 import socket, sys, time
 port = int(sys.argv[1])
-deadline = time.time() + 60
+deadline = time.time() + 30
 data = b""
 while time.time() < deadline:
     try:
@@ -67,12 +76,13 @@ while time.time() < deadline:
         time.sleep(3)
 sys.stdout.write(data.decode("latin-1"))
 PYEOF
+kill %1 2>/dev/null || true
 wait || true
-cat ${workdir}/static.log
+tr -d '\r' < ${workdir}/static.log
 echo "--- telnet session:"
 cat ${workdir}/telnet.log
 grep -q "Address:10.0.2.15" ${workdir}/static.log
-grep -q "telnetd start: successful completion" ${workdir}/static.log
+grep -q "telnetd start: RTEMS_SUCCESSFUL" ${workdir}/static.log
 grep -q "tIocSh>" ${workdir}/telnet.log
 grep -q "Type 'help <glob>'" ${workdir}/telnet.log
 
