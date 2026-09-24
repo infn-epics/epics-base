@@ -24,8 +24,10 @@ for i in ${paths} ; do
         continue
     fi
 
-    # strip any binaries
-    strip $(find ${i}) 2>/dev/null
+    # strip any host binaries: skip RTEMS cross targets because the host strip
+    # understands i386 ELF (RTEMS-pc686) and would empty the symbol tables of
+    # the target libraries, breaking later IOC links
+    strip $(find ${i} -not -path '*/RTEMS-*') 2>/dev/null
 
     # make sure the path to the parent exists
     if [ ! -d ${DEST}/$(dirname ${i}) ]; then

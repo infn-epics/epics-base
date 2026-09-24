@@ -12,6 +12,12 @@ if [[ ${EPICS_TARGET_ARCH} == "RTEMS-beatnik" ]]; then
     echo "Configuring epics-base to build RTEMS beatnik"
 
     cp ${THIS_DIR}/rtems/CONFIG_SITE.local ${EPICS_BASE}/configure/CONFIG_SITE.local
+elif [[ ${EPICS_TARGET_ARCH} == "RTEMS-pc686" ]]; then
+    echo "Configuring epics-base to build RTEMS pc686"
+
+    cp ${THIS_DIR}/rtems-pc686/CONFIG_SITE.local ${EPICS_BASE}/configure/CONFIG_SITE.local
+    cp ${THIS_DIR}/rtems-pc686/CONFIG_SITE.Common.RTEMS-pc686 \
+       ${EPICS_BASE}/configure/os/CONFIG_SITE.Common.RTEMS-pc686
 elif [[ ${EPICS_TARGET_ARCH} == "linux-aarch64" ]]; then
     echo "Configuring epics-base to build linux-aarch64"
 

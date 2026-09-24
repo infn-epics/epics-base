@@ -44,11 +44,13 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && \
     ansible-core \
     ansible-lint \
     binutils-aarch64-linux-gnu \
+    ca-certificates \
     curl \
     g++ \
     g++-aarch64-linux-gnu \
     gcc \
     gcc-aarch64-linux-gnu \
+    git \
     inotify-tools \
     libevent-dev \
     libreadline-dev \

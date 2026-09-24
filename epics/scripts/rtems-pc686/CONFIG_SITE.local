@@ -1,0 +1,15 @@
+# add required settings for RTEMS pc686 cross compilation
+# (x86 VME single board computers e.g. VMIC/Abaco VMIVME-7750)
+
+CROSS_COMPILER_TARGET_ARCHS=RTEMS-pc686
+
+RTEMS_VERSION = 6
+# RTEMS_BASE = # Get this from Docker Environment settings - don't specify here
+# The network stack (legacy, with the fxp driver for Intel 8255x) is detected
+# automatically from the BSP by configure/toolchain.c
+
+USE_POSIX_THREAD_PRIORITY_SCHEDULING = NO
+
+# NOTE: unlike beatnik (MOTLoad NVRAM) we keep the default BOOTP network
+# configuration: the same DHCP server that PXE boots the board provides the IP,
+# the NFS server and the st.cmd path (option 129 rtems_cmdline)

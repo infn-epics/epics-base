@@ -52,6 +52,11 @@ echo pvxsIoc.dbd >> ${THIS_DIR}/../support/configure/dbd_list
 echo pvxs >> ${THIS_DIR}/../support/configure/lib_list
 echo pvxsIoc >> ${THIS_DIR}/../support/configure/lib_list
 
-make -j $(nproc)
+if [[ ${EPICS_TARGET_ARCH} == RTEMS-* ]]; then
+	# host only: no libevent for the RTEMS target (see above)
+	make -j $(nproc) CROSS_COMPILER_TARGET_ARCHS=
+else
+	make -j $(nproc)
+fi
 make clean
 

@@ -1,0 +1,11 @@
+# Site overrides for RTEMS-pc686, installed as
+# configure/os/CONFIG_SITE.Common.RTEMS-pc686 (read after
+# os/CONFIG.Common.RTEMS-pc686, so this override wins)
+
+# The pc386 multiboot header has no a.out kludge (flags 0), so iPXE, GRUB and
+# qemu -kernel can only load an ELF image. Make <ioc>.boot a stripped ELF
+# instead of the default raw binary, keeping the rtems-proxy convention that
+# <ioc>.boot is the bootable image.
+define MUNCH_CMD
+	$(RTEMS_TOOLS)/bin/$(OBJCOPY_FOR_TARGET) -R .comment -S $< $@
+endef
