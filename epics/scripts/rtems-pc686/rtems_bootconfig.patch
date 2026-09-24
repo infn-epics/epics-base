@@ -1,0 +1,90 @@
+diff --git a/modules/libcom/RTEMS/posix/rtems_init.c b/modules/libcom/RTEMS/posix/rtems_init.c
+index f75ab33..418d768 100644
+--- a/modules/libcom/RTEMS/posix/rtems_init.c
++++ b/modules/libcom/RTEMS/posix/rtems_init.c
+@@ -68,6 +68,9 @@
+ #endif
+ 
+ #include <rtems/telnetd.h>
++#if defined(__i386__)
++#include <rtems/bspcmdline.h>
++#endif
+ #if __RTEMS_MAJOR__ > 4
+ #include <rtems/printer.h>
+ #endif
+@@ -987,6 +990,11 @@ POSIX_Init ( void *argument __attribute__((unused)))
+      * Architecture-specific hooks
+      */
+ #ifdef RTEMS_LEGACY_STACK
++#if defined(__i386__)
++    /* pc686: static network config from the multiboot command line, else BOOTP */
++    if (rtems_bsp_cmdline_get_param_raw("IPADDR0=") != NULL)
++        rtems_bsdnet_config.bootp = NULL;
++#endif
+     if (epicsRtemsInitPreSetBootConfigFromNVRAM(&rtems_bsdnet_config) != 0)
+         delayedPanic("epicsRtemsInitPreSetBootConfigFromNVRAM");
+     if (rtems_bsdnet_config.bootp == NULL) {
+@@ -1120,6 +1128,14 @@ POSIX_Init ( void *argument __attribute__((unused)))
+     rtems_bsdnet_initialize_network();
+     printf("\n***** Network Status  *****\n");
+     rtems_netstat(3);
++#if defined(__i386__)
++    /* pc686: VME crates often have no serial console, offer a telnet iocsh
++     * before NTP and NFS, which can block */
++    {
++        rtems_status_code sc = rtems_telnetd_start(&rtems_telnetd_config);
++        printf("***** telnetd start: %s *****\n", rtems_status_text(sc));
++    }
++#endif
+     rtems_bsdnet_synchronize_ntp (0, 0);
+ #endif // not RTEMS_LEGACY_STACK
+ 
+diff --git a/modules/libcom/RTEMS/setBootConfigFromNVRAM.c b/modules/libcom/RTEMS/setBootConfigFromNVRAM.c
+index ecdbe52..adc5716 100644
+--- a/modules/libcom/RTEMS/setBootConfigFromNVRAM.c
++++ b/modules/libcom/RTEMS/setBootConfigFromNVRAM.c
+@@ -320,7 +320,43 @@ setBootConfigFromNVRAM(void)
+     splitRtemsBsdnetBootpCmdline();
+ }
+ 
+-#elif defined(__mcf528x__)
++#elif defined(__mcf528x__) || defined(__i386__)
++
++#if defined(__i386__)
++#include <rtems/bspcmdline.h>
++/*
++ * pc686 (x86 VME boards e.g. VMIVME-7750): there is no NVRAM, the boot
++ * environment is the multiboot command line written by the PXE boot loader:
++ *   IPADDR0=192.168.192.68 NETMASK=255.255.255.0 GATEWAY=192.168.192.1
++ *   SERVER=192.168.192.248 NFSMOUNT=192.168.192.248:/export/ioc:/epics
++ *   CMDLINE=/epics/st.cmd HOSTNAME=myioc
++ * Keys must match whole words: SERVER must not match NTPSERVER=...
++ */
++static const char *
++bsp_getbenv(const char *parm)
++{
++    static char value[256];
++    const char *cp = rtems_bsp_cmdline_get();
++    size_t l = strlen(parm);
++
++    while (cp && *cp) {
++        while (*cp == ' ')
++            cp++;
++        if (strncmp(cp, parm, l) == 0 && cp[l] == '=') {
++            const char *v = cp + l + 1;
++            size_t n = strcspn(v, " ");
++
++            if (n >= sizeof(value))
++                n = sizeof(value) - 1;
++            memcpy(value, v, n);
++            value[n] = '\0';
++            return value;
++        }
++        cp = strchr(cp, ' ');
++    }
++    return NULL;
++}
++#endif
+ 
+ static char *
+ env(const char *parm, const char *defaultValue)

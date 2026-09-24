@@ -20,6 +20,8 @@ elif [[ ${EPICS_TARGET_ARCH} == "RTEMS-pc686" ]]; then
        ${EPICS_BASE}/configure/os/CONFIG_SITE.Common.RTEMS-pc686
     # RTEMS 6 legacy stack: only the fxp driver (Intel 82559 on the VMIVME-7750)
     git -C ${EPICS_BASE} apply ${THIS_DIR}/rtems-pc686/rtems_netconfig.patch
+    # no NVRAM: network/NFS config from the multiboot command line, telnet iocsh
+    git -C ${EPICS_BASE} apply ${THIS_DIR}/rtems-pc686/rtems_bootconfig.patch
 elif [[ ${EPICS_TARGET_ARCH} == "linux-aarch64" ]]; then
     echo "Configuring epics-base to build linux-aarch64"
 
