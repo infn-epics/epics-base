@@ -48,9 +48,12 @@ sed -i -E 's/(^[^#].*test)/# \1/' Makefile
 # add in the global RELEASE file as
 ln -s ${SUPPORT}/configure/RELEASE ./configure/RELEASE.local
 
-echo pvxsIoc.dbd >> ${THIS_DIR}/../support/configure/dbd_list
-echo pvxs >> ${THIS_DIR}/../support/configure/lib_list
-echo pvxsIoc >> ${THIS_DIR}/../support/configure/lib_list
+# IOCs link everything in dbd_list/lib_list; on RTEMS pvxs is host only
+if [[ ${EPICS_TARGET_ARCH} != RTEMS-* ]]; then
+	echo pvxsIoc.dbd >> ${THIS_DIR}/../support/configure/dbd_list
+	echo pvxs >> ${THIS_DIR}/../support/configure/lib_list
+	echo pvxsIoc >> ${THIS_DIR}/../support/configure/lib_list
+fi
 
 if [[ ${EPICS_TARGET_ARCH} == RTEMS-* ]]; then
 	# host only: no libevent for the RTEMS target (see above)
