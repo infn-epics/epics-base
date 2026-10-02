@@ -22,6 +22,8 @@ elif [[ ${EPICS_TARGET_ARCH} == "RTEMS-pc686" ]]; then
     git -C ${EPICS_BASE} apply ${THIS_DIR}/rtems-pc686/rtems_netconfig.patch
     # no NVRAM: network/NFS config from the multiboot command line, telnet iocsh
     git -C ${EPICS_BASE} apply ${THIS_DIR}/rtems-pc686/rtems_bootconfig.patch
+    # procServ-like network console (history + IOC shell over TCP, port 23)
+    git -C ${EPICS_BASE} apply ${THIS_DIR}/rtems-pc686/rtems_netconsole.patch
 elif [[ ${EPICS_TARGET_ARCH} == "linux-aarch64" ]]; then
     echo "Configuring epics-base to build linux-aarch64"
 

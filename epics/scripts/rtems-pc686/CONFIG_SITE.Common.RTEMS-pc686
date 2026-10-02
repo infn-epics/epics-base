@@ -9,3 +9,9 @@
 define MUNCH_CMD
 	$(RTEMS_TOOLS)/bin/$(OBJCOPY_FOR_TARGET) -R .comment -S $< $@
 endef
+
+# Limit RTEMS to the first 480 MB of RAM, as Linux does on the VMIVME-7750
+# (mem=480M): the top of the 512 MB is not used. Booting with the full RAM
+# reset the board at startup during bring-up; not yet confirmed which of
+# the fixes made at the same time solved it, so keep the tested setting.
+OP_SYS_LDFLAGS += -Wl,--defsym=RamSize=0x1E000000
