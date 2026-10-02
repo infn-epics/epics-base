@@ -23,7 +23,7 @@ CONSOLE_PORT=${CONSOLE_PORT:-2323}
 if ! docker version &>/dev/null; then docker=podman; else docker=docker; fi
 
 workdir=$(mktemp -d)
-trap 'kill $(jobs -p) 2>/dev/null; rm -rf ${workdir}' EXIT
+trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf ${workdir}' EXIT
 
 if [ -f "${IMAGE}" ]; then
     cp "${IMAGE}" ${workdir}/softIoc.boot
