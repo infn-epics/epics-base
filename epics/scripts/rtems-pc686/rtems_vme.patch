@@ -1,0 +1,387 @@
+diff --git a/modules/libcom/RTEMS/Makefile b/modules/libcom/RTEMS/Makefile
+index dff32be..b94f891 100644
+--- a/modules/libcom/RTEMS/Makefile
++++ b/modules/libcom/RTEMS/Makefile
+@@ -36,6 +36,7 @@ rtemsCom_SRCS += epicsNtp.c
+ ifeq ($(RTEMS_TARGET_CPU),i386)
+ rtemsCom_SRCS += ne2kpci.c
+ rtemsCom_SRCS += netconsole.c
++rtemsCom_SRCS += vmeShell.c
+ endif
+ 
+ rtems_config_CPPFLAGS += -DBSP_$(RTEMS_BSP)
+diff --git a/modules/libcom/RTEMS/posix/rtems_init.c b/modules/libcom/RTEMS/posix/rtems_init.c
+index 79b74b5..7894315 100644
+--- a/modules/libcom/RTEMS/posix/rtems_init.c
++++ b/modules/libcom/RTEMS/posix/rtems_init.c
+@@ -71,6 +71,8 @@
+ #if defined(__i386__)
+ #include <rtems/bspcmdline.h>
+ #include "netconsole.h"
++#include "vmeShell.h"
++#include <bsp/VMEConfig.h>
+ #endif
+ #if __RTEMS_MAJOR__ > 4
+ #include <rtems/printer.h>
+@@ -703,6 +705,9 @@ static void iocshRegisterRTEMS (void)
+     iocshRegister(&zonesetFuncDef, &zonesetCallFunc);
+     iocshRegister(&rtshellFuncDef, &rtshellCallFunc);
+     iocshRegister(&setlogmaskFuncDef, &setlogmaskCallFunc);
++#if defined(__i386__)
++    vmeShellRegister();
++#endif
+ #if __RTEMS_MAJOR__ > 4
+     rtems_shell_init_environment();
+ #endif
+@@ -959,6 +964,8 @@ POSIX_Init ( void *argument __attribute__((unused)))
+     /* pc686: keep the console output for the network console from here on */
+     if (netconsoleInit() != 0)
+         printf("***** netconsole: can't redirect the console *****\n");
++    /* pc686: VME bridge (Universe II) windows and interrupts, if present */
++    BSP_vme_config();
+ #endif
+ 
+     /*
+diff --git a/modules/libcom/RTEMS/vmeShell.c b/modules/libcom/RTEMS/vmeShell.c
+new file mode 100644
+index 0000000..d2cc261
+--- /dev/null
++++ b/modules/libcom/RTEMS/vmeShell.c
+@@ -0,0 +1,233 @@
++/*************************************************************************\
++* SPDX-License-Identifier: EPICS
++* EPICS BASE is distributed subject to a Software License Agreement found
++* in file LICENSE that is included with this distribution.
++\*************************************************************************/
++/*
++ * iocsh commands for the VME bus of RTEMS-pc686 boards (Universe II, e.g.
++ * VMIVME-7750):
++ *
++ *   vmeShow                                      outbound/inbound windows
++ *   vmeMasterWindow port am vmeAddr pciAddr size outbound window (st.cmd)
++ *   vmeProbe A16|A24|A32|CSR|<AM> addr [1|2|4]        bus error safe read
++ *   vmeWrite A16|A24|A32|CSR|<AM> addr value [1|2|4]  bus error safe write
++ *   vmeDiag A16|A24|A32|CSR addr [1|2|4]         plain read, bridge registers
++ *                                                before and after (debug)
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include <bsp/VME.h>
++#include <bsp/VMEConfig.h>
++
++#include "devLibVME.h"
++#include "iocsh.h"
++#include "epicsTypes.h"
++
++#include "vmeShell.h"
++
++static int addrType(const char *name, epicsAddressType *type)
++{
++    if (name == NULL) {
++        printf("address type missing: A16, A24, A32 or CSR\n");
++        return -1;
++    }
++    if (strcmp(name, "A16") == 0 || strcmp(name, "a16") == 0)
++        *type = atVMEA16;
++    else if (strcmp(name, "A24") == 0 || strcmp(name, "a24") == 0)
++        *type = atVMEA24;
++    else if (strcmp(name, "A32") == 0 || strcmp(name, "a32") == 0)
++        *type = atVMEA32;
++    else if (strcmp(name, "CSR") == 0 || strcmp(name, "csr") == 0)
++        *type = atVMECSR;
++    else {
++        printf("bad address type '%s': A16, A24, A32 or CSR\n", name);
++        return -1;
++    }
++    return 0;
++}
++
++/*
++ * Map a VME address to a local address. 'space' is A16, A24, A32, CSR (the
++ * supervisory data AMs used by devLib) or an address modifier number, e.g.
++ * 0x09 for A32 user data; a window with that AM must exist (vmeMasterWindow).
++ */
++static int vmeToLocal(const char *space, epicsUInt32 addr, volatile void **local)
++{
++    epicsAddressType type;
++    char *end;
++    unsigned long am;
++    unsigned long l;
++
++    if (space == NULL) {
++        printf("address space missing: A16, A24, A32, CSR or an AM number\n");
++        return -1;
++    }
++    am = strtoul(space, &end, 0);
++    if (end != space && *end == '\0') {
++        if (BSP_vme2local_adrs(am, addr, &l) != 0) {
++            printf("AM 0x%02lx 0x%08x: not mapped by any VME window\n", am,
++                   (unsigned) addr);
++            return -1;
++        }
++        *local = (volatile void *) l;
++        return 0;
++    }
++    if (addrType(space, &type) != 0)
++        return -1;
++    if (devBusToLocalAddr(type, addr, local) != 0) {
++        printf("%s 0x%08x: not mapped by any VME window\n", space,
++               (unsigned) addr);
++        return -1;
++    }
++    return 0;
++}
++
++static int width(int w)
++{
++    if (w == 0)
++        return 2;
++    if (w == 1 || w == 2 || w == 4)
++        return w;
++    printf("bad width %d: 1, 2 or 4 bytes\n", w);
++    return -1;
++}
++
++/* vmeShow */
++static const iocshFuncDef vmeShowFuncDef = {"vmeShow", 0, NULL,
++    "Show the VME outbound and inbound windows\n"};
++static void vmeShowCallFunc(const iocshArgBuf *args)
++{
++    (void) args;
++    BSP_VMEOutboundPortsShow(stdout);
++    BSP_VMEInboundPortsShow(stdout);
++}
++
++/* vmeMasterWindow port am vmeAddr pciAddr size */
++static const iocshArg vmeMasterWindowArg0 = {"port (3..6 are free)", iocshArgInt};
++static const iocshArg vmeMasterWindowArg1 = {"address modifier", iocshArgInt};
++static const iocshArg vmeMasterWindowArg2 = {"VME address", iocshArgInt};
++static const iocshArg vmeMasterWindowArg3 = {"PCI address", iocshArgInt};
++static const iocshArg vmeMasterWindowArg4 = {"size (0 disables)", iocshArgInt};
++static const iocshArg * const vmeMasterWindowArgs[5] = {
++    &vmeMasterWindowArg0, &vmeMasterWindowArg1, &vmeMasterWindowArg2,
++    &vmeMasterWindowArg3, &vmeMasterWindowArg4};
++static const iocshFuncDef vmeMasterWindowFuncDef = {"vmeMasterWindow", 5,
++    vmeMasterWindowArgs,
++    "Configure a VME outbound (master) window, e.g. A32 0x0d:\n"
++    "  vmeMasterWindow 3 0x0d 0xee000000 0xa0000000 0x01000000\n"
++    "Use PCI addresses 0x80000000..0xefffffff not used by the default\n"
++    "windows (0x90000000..0x9fffffff).\n"};
++static void vmeMasterWindowCallFunc(const iocshArgBuf *args)
++{
++    int status = BSP_VMEOutboundPortCfg(
++        (unsigned long) args[0].ival, (unsigned long) args[1].ival,
++        (unsigned long) (epicsUInt32) args[2].ival,
++        (unsigned long) (epicsUInt32) args[3].ival,
++        (unsigned long) (epicsUInt32) args[4].ival);
++
++    if (status)
++        printf("vmeMasterWindow: failed (%d)\n", status);
++    iocshSetError(status);
++}
++
++/* vmeProbe type addr width */
++static const iocshArg vmeProbeArg0 = {"A16|A24|A32|CSR or AM number", iocshArgString};
++static const iocshArg vmeProbeArg1 = {"VME address", iocshArgInt};
++static const iocshArg vmeProbeArg2 = {"width 1|2|4 (default 2)", iocshArgInt};
++static const iocshArg * const vmeProbeArgs[3] = {
++    &vmeProbeArg0, &vmeProbeArg1, &vmeProbeArg2};
++static const iocshFuncDef vmeProbeFuncDef = {"vmeProbe", 3, vmeProbeArgs,
++    "Read a VME location, reporting bus errors\n"};
++static void vmeProbeCallFunc(const iocshArgBuf *args)
++{
++    volatile void *local;
++    epicsUInt32 value = 0;
++    epicsUInt32 addr = (epicsUInt32) args[1].ival;
++    int w = width(args[2].ival);
++
++    if (w < 0 || vmeToLocal(args[0].sval, addr, &local) != 0) {
++        iocshSetError(-1);
++        return;
++    }
++    if (devReadProbe(w, local, &value)) {
++        printf("%s 0x%08x (local %p): bus error\n", args[0].sval,
++               (unsigned) addr, (void *) local);
++        iocshSetError(-1);
++        return;
++    }
++    if (w == 1)
++        printf("%s 0x%08x: 0x%02x\n", args[0].sval, (unsigned) addr,
++               (unsigned) (value & 0xff));
++    else if (w == 2)
++        printf("%s 0x%08x: 0x%04x\n", args[0].sval, (unsigned) addr,
++               (unsigned) (value & 0xffff));
++    else
++        printf("%s 0x%08x: 0x%08x\n", args[0].sval, (unsigned) addr,
++               (unsigned) value);
++}
++
++/* vmeWrite type addr value width */
++static const iocshArg vmeWriteArg0 = {"A16|A24|A32|CSR or AM number", iocshArgString};
++static const iocshArg vmeWriteArg1 = {"VME address", iocshArgInt};
++static const iocshArg vmeWriteArg2 = {"value", iocshArgInt};
++static const iocshArg vmeWriteArg3 = {"width 1|2|4 (default 2)", iocshArgInt};
++static const iocshArg * const vmeWriteArgs[4] = {
++    &vmeWriteArg0, &vmeWriteArg1, &vmeWriteArg2, &vmeWriteArg3};
++static const iocshFuncDef vmeWriteFuncDef = {"vmeWrite", 4, vmeWriteArgs,
++    "Write a VME location, reporting bus errors\n"};
++static void vmeWriteCallFunc(const iocshArgBuf *args)
++{
++    volatile void *local;
++    epicsUInt32 addr = (epicsUInt32) args[1].ival;
++    epicsUInt32 value = (epicsUInt32) args[2].ival;
++    int w = width(args[3].ival);
++
++    if (w < 0 || vmeToLocal(args[0].sval, addr, &local) != 0) {
++        iocshSetError(-1);
++        return;
++    }
++    if (devWriteProbe(w, local, &value)) {
++        printf("%s 0x%08x: bus error\n", args[0].sval, (unsigned) addr);
++        iocshSetError(-1);
++    }
++}
++
++/* vmeDiag type addr width */
++static const iocshFuncDef vmeDiagFuncDef = {"vmeDiag", 3, vmeProbeArgs,
++    "Plain (not bus error safe) read, showing the Universe and VMIC error\n"
++    "registers before and after it\n"};
++static void vmeDiagCallFunc(const iocshArgBuf *args)
++{
++    volatile void *local;
++    epicsUInt32 value = 0;
++    epicsUInt32 addr = (epicsUInt32) args[1].ival;
++    int w = width(args[2].ival);
++
++    if (w < 0 || vmeToLocal(args[0].sval, addr, &local) != 0)
++        return;
++    _BSP_clear_hostbridge_errors(0, 1);
++    printf("--- before (errors cleared)\n");
++    BSP_VMEErrorsShow();
++    if (w == 1)
++        value = *(volatile epicsUInt8 *) local;
++    else if (w == 2)
++        value = *(volatile epicsUInt16 *) local;
++    else
++        value = *(volatile epicsUInt32 *) local;
++    printf("--- after reading %s 0x%08x (local %p): 0x%x\n", args[0].sval,
++           (unsigned) addr, (void *) local, (unsigned) value);
++    BSP_VMEErrorsShow();
++    _BSP_clear_hostbridge_errors(0, 0);
++}
++
++void vmeShellRegister(void)
++{
++    iocshRegister(&vmeDiagFuncDef, vmeDiagCallFunc);
++    iocshRegister(&vmeShowFuncDef, vmeShowCallFunc);
++    iocshRegister(&vmeMasterWindowFuncDef, vmeMasterWindowCallFunc);
++    iocshRegister(&vmeProbeFuncDef, vmeProbeCallFunc);
++    iocshRegister(&vmeWriteFuncDef, vmeWriteCallFunc);
++}
+diff --git a/modules/libcom/RTEMS/vmeShell.h b/modules/libcom/RTEMS/vmeShell.h
+new file mode 100644
+index 0000000..934a065
+--- /dev/null
++++ b/modules/libcom/RTEMS/vmeShell.h
+@@ -0,0 +1,22 @@
++/*************************************************************************\
++* SPDX-License-Identifier: EPICS
++* EPICS BASE is distributed subject to a Software License Agreement found
++* in file LICENSE that is included with this distribution.
++\*************************************************************************/
++/*
++ * iocsh commands for the VME bus of RTEMS-pc686 boards, see vmeShell.c
++ */
++#ifndef INC_vmeShell_H
++#define INC_vmeShell_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++void vmeShellRegister(void);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif /* INC_vmeShell_H */
+diff --git a/modules/libcom/src/osi/os/RTEMS-score/devLibVMEOSD.c b/modules/libcom/src/osi/os/RTEMS-score/devLibVMEOSD.c
+index 83e6c3d..80adbd9 100644
+--- a/modules/libcom/src/osi/os/RTEMS-score/devLibVMEOSD.c
++++ b/modules/libcom/src/osi/os/RTEMS-score/devLibVMEOSD.c
+@@ -20,16 +20,21 @@
+ #include "devLibVME.h"
+ #include <epicsInterrupt.h>
+ #include <epicsMMIO.h>
++#include <epicsEndian.h>
+ #include <string.h>
+ 
+-#if defined(__PPC__) || defined(__mcf528x__)
++#if defined(__PPC__) || defined(__mcf528x__) || defined(__i386__)
+ /* EPICS VME support requires various routines to be provided by the
+- * BSP. Most MVME PowerPC BSPs provide them, plus the uC5282.
++ * BSP. Most MVME PowerPC BSPs provide them, plus the uC5282, and the
++ * pc686 BSP with a Universe II bridge (e.g. VMIVME-7750).
+  */
+ 
+-#if defined(__PPC__)
++#if defined(__PPC__) || defined(__i386__)
+ #include <bsp/VME.h>
+ #endif
++#if defined(__i386__)
++#include <bsp/VMEConfig.h>
++#endif
+ 
+ 
+ typedef void    myISR (void *pParam);
+@@ -280,19 +285,27 @@ rtems_status_code bspExtMemProbe(void *addr, int write, int size, void *pval)
+     rtems_interrupt_disable(flags);
+     _BSP_clear_hostbridge_errors(0,1);
+ 
++    /* val holds the value in its first 'size' bytes (memcpy), so the
++     * shift depends on the CPU byte order */
++#if EPICS_BYTE_ORDER == EPICS_ENDIAN_BIG
++#  define PROBE_SHIFT(size) (32 - 8 * (size))
++#else
++#  define PROBE_SHIFT(size) 0
++#endif
+     if(!write) {
+         switch(size) {
+-        case 1: val = ioread8(addr)<<24; break;
+-        case 2: val = nat_ioread16(addr)<<16; break;
++        case 1: val = ioread8(addr)<<PROBE_SHIFT(1); break;
++        case 2: val = nat_ioread16(addr)<<PROBE_SHIFT(2); break;
+         case 4: val = nat_ioread32(addr); break;
+         }
+     } else {
+         switch(size) {
+-        case 1: iowrite8(addr, val>>24); break;
+-        case 2: nat_iowrite16(addr, val>>16); break;
++        case 1: iowrite8(addr, val>>PROBE_SHIFT(1)); break;
++        case 2: nat_iowrite16(addr, val>>PROBE_SHIFT(2)); break;
+         case 4: nat_iowrite32(addr, val); break;
+         }
+     }
++#undef PROBE_SHIFT
+ 
+     ret = _BSP_clear_hostbridge_errors(0,1);
+     rtems_interrupt_enable(flags);
+@@ -403,12 +416,12 @@ static void unsolicitedHandlerEPICS(int vectorNumber)
+         );
+ }
+ 
+-#else /* !defined(__PPC__) && !defined(__mcf528x__) */
++#else /* !defined(__PPC__) && !defined(__mcf528x__) && !defined(__i386__) */
+ 
+ /* No known VME interface here, provide a dummy */
+ devLibVME *pdevLibVME;
+ 
+-#endif /* defined(__PPC__) || defined(__mcf528x__) */
++#endif /* defined(__PPC__) || defined(__mcf528x__) || defined(__i386__) */
+ 
+ /*
+  * Some convenience routines

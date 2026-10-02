@@ -24,6 +24,9 @@ elif [[ ${EPICS_TARGET_ARCH} == "RTEMS-pc686" ]]; then
     git -C ${EPICS_BASE} apply ${THIS_DIR}/rtems-pc686/rtems_bootconfig.patch
     # procServ-like network console (history + IOC shell over TCP, port 23)
     git -C ${EPICS_BASE} apply ${THIS_DIR}/rtems-pc686/rtems_netconsole.patch
+    # VME (Universe II): devLib for x86, BSP_vme_config at startup, iocsh
+    # vmeShow/vmeMasterWindow/vmeProbe/vmeWrite/vmeDiag
+    git -C ${EPICS_BASE} apply ${THIS_DIR}/rtems-pc686/rtems_vme.patch
 elif [[ ${EPICS_TARGET_ARCH} == "linux-aarch64" ]]; then
     echo "Configuring epics-base to build linux-aarch64"
 
