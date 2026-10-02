@@ -76,7 +76,9 @@ RUN . /tmp/arch.env && \
 ENV PATH=${EPICS_ROOT}/support/pvxs/bin/${EPICS_HOST_ARCH}:${PATH}
 
 # create a venv for IOCs to install ibek
-RUN uv venv --managed-python /venv
+# Python 3.13 like the epics-containers images: ibek and its pydantic pins
+# have no Python 3.14 builds yet
+RUN uv venv --managed-python --python 3.13 /venv
 
 ##### runtime preparation stage ################################################
 FROM developer AS runtime_prep
