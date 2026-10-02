@@ -42,7 +42,7 @@ jobs:
             epics-host: linux-x86_64
             name: epics-base-rtems-pc686
             # NOTE: when changing this - also change it in '/build'
-            base_image: ghcr.io/infn-epics/rtems-pc686-runtime:6.1inf2
+            base_image: ghcr.io/infn-epics/rtems-pc686-runtime:6.1inf3
             platform: linux/amd64
 
           # native linux/arm64 build (run via buildx+qemu on hosted runners)
