@@ -58,6 +58,9 @@ fi
 if [[ ${EPICS_TARGET_ARCH} == RTEMS-* ]]; then
 	# host only: no libevent for the RTEMS target (see above)
 	make -j $(nproc) CROSS_COMPILER_TARGET_ARCHS=
+	# support modules must not pick up pvxs: its CONFIG_PVXS_MODULE needs a
+	# TOOLCHAIN_PVXS.<target> that does not exist for the RTEMS target
+	sed -i '/^PVXS *=/d' ${THIS_DIR}/../support/configure/RELEASE
 else
 	make -j $(nproc)
 fi
